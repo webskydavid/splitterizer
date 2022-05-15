@@ -1,96 +1,304 @@
-import { FC, ReactNode, useEffect, useRef, useState } from 'react';
+import { atom, Provider, useAtom } from 'jotai';
+import { useAtomValue } from 'jotai/utils';
+import React, {
+	FC,
+	Fragment,
+	ReactNode,
+	useCallback,
+	useEffect,
+	useRef,
+} from 'react';
+import Divider from '../Divider/Divider';
 
 import classes from './Group.module.css';
 
-type Props = {
+export enum Direction {
+	Column = 'COLUMN',
+	Row = 'ROW',
+}
+
+interface Props {
 	children: ReactNode[];
+	direction?: Direction;
+	initSizes?: number[];
+	minBoxHeights?: number[];
+	minBoxWidths?: number[];
+	scope: any;
+}
+
+interface Link {
+	current: HTMLElement;
+	divider: HTMLElement;
+	fold: boolean;
+	index: number;
+	next: HTMLElement;
+	parent: HTMLElement;
+	prev: HTMLElement;
+	_currentPercent: number;
+	_dividerSize: number;
+	_end: number;
+	_prevPercent: number;
+	_pairSize: number;
+	_start: number;
+}
+
+const MIN_SIZE = 10;
+
+const getInnerSize = (direction: Direction, element: HTMLElement) => {
+	return direction === Direction.Column
+		? element.clientHeight
+		: element.clientWidth;
 };
 
-type Link = {
-	ref: HTMLDivElement;
-	size: number;
-	start: number;
-	style: {
-		height: string;
-		width: string;
-	};
-};
+const draggingAtom = atom(false);
+const dividerIndexAtom = atom(-1);
+const linksAtom = atom<Link[]>([]);
 
-const Group: FC<Props> = ({ children }) => {
-	const groupRef = useRef<HTMLDivElement>(null);
-	const boxesRef = useRef<HTMLDivElement[]>([]);
-	const [isDragging, setIsDragging] = useState(false);
-	const [currentDivider, setCurrentDivider] = useState<number | null>(null);
+const generateLinksAtom = atom(null, (get, set, update: any) => {
+	console.log('generateLinksAtom');
 
-	const [links, setLinks] = useState<Link[]>([]);
+	const { direction, children, dividers } = update;
+	const parent = children[0].parentNode;
 
-	const handleMouseDown = (e, index: number) => {
-		setIsDragging(true);
-		setCurrentDivider(index);
-		console.log('start', links);
-	};
+	let array: Link[] = [];
 
-	// INIT
-	useEffect(() => {
-		if (!boxesRef.current.length) return;
-		const boxes = boxesRef.current;
-		const map: Link[] = [];
+	children.forEach((child: HTMLElement, index: number) => {
+		const prev = children[index - 1];
+		const divider = dividers[index];
+		const current = children[index];
+		const next = children[index + 1];
 
-		boxes.forEach((box, i) => {
-			const { height, top } = box.getBoundingClientRect();
-			const calcHeight = `calc(${100 / boxes.length}%)`;
+		const dividerSize =
+			direction === Direction.Column
+				? divider.getBoundingClientRect().height
+				: divider.getBoundingClientRect().width;
 
-			map.push({
-				ref: box,
-				size: height,
-				start: top,
-				style: {
-					height: calcHeight,
-					width: '100%',
-				},
+		const end =
+			direction === Direction.Column
+				? current.getBoundingClientRect().bottom
+				: current.getBoundingClientRect().right;
+
+		const start =
+			direction === Direction.Column && prev
+				? prev?.getBoundingClientRect().top
+				: prev?.getBoundingClientRect().left;
+
+		const size =
+			direction === Direction.Column && prev
+				? prev?.getBoundingClientRect().height +
+				  divider.getBoundingClientRect().height +
+				  current.getBoundingClientRect().height
+				: prev?.getBoundingClientRect().width +
+				  divider.getBoundingClientRect().width +
+				  current.getBoundingClientRect().width;
+
+		array.push({
+			current,
+			divider,
+			fold: false,
+			index: index,
+			next,
+			parent,
+			prev,
+			_currentPercent: 100 / children.length,
+			_dividerSize: dividerSize,
+			_end: end,
+			_prevPercent: prev ? 100 / children.length : undefined,
+			_pairSize: prev ? size : undefined,
+			_start: start,
+		} as Link);
+	});
+	set(linksAtom, array);
+});
+
+const calculateSizesAtom = atom(null, (get, set, update: any) => {
+	console.log('calculateSizesAtom');
+
+	const { direction, index } = update;
+	const links = get(linksAtom);
+	const link = links[index];
+	const parentSize = getInnerSize(direction, link.parent);
+	const dividerHeight = link.divider.clientHeight;
+
+	let prevPercent;
+	let currentPercent;
+
+	if (direction === Direction.Column) {
+		console.log('calculateSizes');
+
+		const prevHeight = link.prev?.getBoundingClientRect().height || 0;
+		const prevTop = link.prev?.getBoundingClientRect().top || 0;
+		prevPercent = ((prevHeight + dividerHeight) / parentSize) * 100;
+		link._prevPercent = prevPercent;
+
+		const current = link.current.getBoundingClientRect();
+		currentPercent = ((current.height + dividerHeight) / parentSize) * 100;
+		link._currentPercent = currentPercent;
+
+		link._start = prevTop;
+		link._end = current.bottom;
+		link._pairSize = prevHeight + dividerHeight * 2 + current.height;
+
+		// Calculate rest size for last box
+	} else {
+	}
+
+	links[index] = link;
+
+	console.log('fff', links[index]);
+
+	set(linksAtom, links);
+});
+
+const Group: FC<Props> = ({
+	children,
+	direction = Direction.Column,
+	minBoxHeights = [],
+	minBoxWidths = [],
+	initSizes = [],
+	scope: SCOPE,
+}) => {
+	const links = useAtomValue(linksAtom, SCOPE);
+	const [dragging, setDragging] = useAtom(draggingAtom, SCOPE);
+	const [dividerIndex, setDividerIndex] = useAtom(dividerIndexAtom, SCOPE);
+
+	const [, generateLinks] = useAtom(generateLinksAtom, SCOPE);
+	const [, calculateSizes] = useAtom(calculateSizesAtom, SCOPE);
+
+	const groupRef = useRef<any>();
+	const childRef = useRef<HTMLElement[]>([]);
+	const dividerRef = useRef<HTMLElement[]>([]);
+
+	console.log('links', links);
+
+	const init = useCallback(
+		(
+			direction: Direction,
+			children: HTMLElement[],
+			dividers: HTMLElement[],
+			initSizes: number[]
+		) => {
+			const sizes = direction === Direction.Column ? 'height' : 'width';
+			const parent = children[0].parentNode;
+			const parentSize = getInnerSize(direction, parent as HTMLElement);
+
+			if (!parentSize) {
+				throw new Error('Parent size undefined');
+			}
+
+			if (initSizes.length && initSizes.reduce((p, c) => p + c, 0) < 100) {
+				throw new Error('Sum of initial sizes is less then 100');
+			}
+
+			children.forEach((child, index) => {
+				const divider = dividers[index];
+				const dividerSize = divider.getBoundingClientRect()[sizes];
+				let calc = `calc(${100 / children.length}% - ${dividerSize}px)`;
+
+				if (initSizes.length) {
+					calc = `calc(${initSizes[index]}% - ${dividerSize}px)`;
+				}
+
+				if (direction === Direction.Column) {
+					child.style.height = calc;
+					child.style.width = '100%';
+				} else {
+					child.style.height = '100%';
+					child.style.width = calc;
+				}
 			});
+		},
+		[]
+	);
 
-			box.style.height = calcHeight;
-		});
+	const startDrag = useCallback(
+		(index: number) => {
+			setDragging(true);
+			setDividerIndex(index);
+		},
+		[setDividerIndex, setDragging]
+	);
 
-		setLinks(map);
-	}, []);
+	const stopDrag = useCallback(() => {
+		setDragging(false);
+	}, [setDragging]);
+
+	const drag = useCallback(
+		(e: React.MouseEvent, direction: Direction, dividerIndex: number) => {
+			const link = links[dividerIndex];
+			const prevLink = links[dividerIndex - 1];
+			if (link.fold || prevLink.fold) return;
+
+			const isColumn = direction === Direction.Column;
+
+			const percent = link._prevPercent + link._currentPercent;
+			const dividerSize = link._dividerSize;
+			let offset = (isColumn ? e.clientY : e.clientX) - link._start;
+
+			// MIN SIZES
+			if (offset < dividerSize + MIN_SIZE) {
+				offset = dividerSize + MIN_SIZE;
+			}
+			if (offset >= link._pairSize - (dividerSize + MIN_SIZE)) {
+				offset = link._pairSize - (dividerSize + MIN_SIZE);
+			}
+
+			const prevPercent = (offset / link._pairSize) * percent;
+			const currentPercent = percent - prevPercent;
+
+			if (direction === Direction.Column) {
+				link.prev.style.height = `calc(${prevPercent}% - ${dividerSize}px)`;
+				link.current.style.height = `calc(${currentPercent}% - ${dividerSize}px)`;
+			} else {
+				link.prev.style.width = `calc(${prevPercent}% - ${dividerSize}px)`;
+				link.current.style.width = `calc(${currentPercent}% - ${dividerSize}px)`;
+			}
+		},
+		[links]
+	);
+
+	const handleDividerMouseDown = (e: React.MouseEvent, index: number) => {
+		e.preventDefault();
+		if (index === 0) return;
+		calculateSizes({ direction, index });
+		startDrag(index);
+	};
 
 	// MOUSE MOVE
 	useEffect(() => {
 		const groupHeight = groupRef.current?.clientHeight;
+		const event = (e) => {
+			if (!dragging) return;
 
-		const event = (e: MouseEvent) => {
-			if (isDragging && currentDivider !== null) {
+			requestAnimationFrame(() => {
+				const link = links[dividerIndex];
+				const prevLink = links[dividerIndex - 1];
+				const isColumn = direction === Direction.Column;
+				const percent = link._prevPercent + link._currentPercent;
+				const dividerSize = link._dividerSize;
+				let offset = (isColumn ? e.clientY : e.clientX) - link._start;
+
+				// MIN SIZES
+				if (offset < dividerSize + MIN_SIZE) {
+					offset = dividerSize + MIN_SIZE;
+				}
+				if (offset >= link._pairSize - (dividerSize + MIN_SIZE)) {
+					offset = link._pairSize - (dividerSize + MIN_SIZE);
+				}
+
+				const prevPercent = (offset / link._pairSize) * percent;
+				const currentPercent = percent - prevPercent;
 				requestAnimationFrame(() => {
-					const mousePosY = e.clientY;
-					const pos = e.pageX;
-					const current = links[currentDivider];
-					const previous = links[currentDivider - 1];
-					const offset = mousePosY - links[currentDivider].start;
-					console.log(0, ((previous.size + offset) / groupHeight) * 100);
-					console.log(1, ((current.size - offset) / groupHeight) * 100);
-
-					requestAnimationFrame(() => {
-						previous.ref.style.height = `calc(${
-							((previous.size + offset) / groupHeight) * 100
-						}%)`;
-						current.ref.style.height = `calc(${
-							((current.size - offset) / groupHeight) * 100
-						}%)`;
-
-						//links[currentDivider].h = links[currentDivider].h - offset;
-					});
+					if (direction === Direction.Column) {
+						link.prev.style.height = `calc(${prevPercent}% - ${dividerSize}px)`;
+						link.current.style.height = `calc(${currentPercent}% - ${dividerSize}px)`;
+					} else {
+						link.prev.style.width = `calc(${prevPercent}% - ${dividerSize}px)`;
+						link.current.style.width = `calc(${currentPercent}% - ${dividerSize}px)`;
+					}
 				});
-
-				// throttle(() => {
-				// 	const height = e.clientY;
-				// 	const bounding = refs.current[0].getBoundingClientRect().height;
-				// 	console.log(groupHeight / refs.current.length, height, bounding);
-				// 	console.log('Log: [run]', 1);
-				// 	refs.current[0].style.height = `${height - 100}px`;
-				// }, 10);
-			}
+			});
+			//drag(e, direction, dividerIndex);
 		};
 
 		window.addEventListener('mousemove', event);
@@ -98,110 +306,72 @@ const Group: FC<Props> = ({ children }) => {
 		return () => {
 			window.removeEventListener('mousemove', event);
 		};
-	}, [isDragging]);
+	}, [dragging, drag]);
 
 	// MOUSE UP
 	useEffect(() => {
 		const event = (e) => {
-			e.preventDefault();
-			setIsDragging(false);
-			setCurrentDivider(null);
-
-			if (links.length === 0) return;
-
-			setLinks((prev) => {
-				const prevBox = prev[currentDivider - 1];
-				const currentBox = prev[currentDivider];
-
-				const h1 = prevBox.ref.getBoundingClientRect().height;
-				const start1 = prevBox.ref.getBoundingClientRect().top;
-				const h2 = currentBox.ref.getBoundingClientRect().height;
-				const start2 = currentBox.ref.getBoundingClientRect().top;
-
-				prev[currentDivider - 1] = {
-					...prevBox,
-					size: h1,
-					start: start1,
-				};
-
-				prev[currentDivider] = {
-					...currentBox,
-					size: h2,
-					start: start2,
-				};
-
-				return prev;
-			});
-
-			console.log('stop');
+			if (!dragging) return;
+			stopDrag();
+			calculateSizes({ direction, index: dividerIndex });
 		};
+
 		window.addEventListener('mouseup', event);
 
 		return () => {
 			window.removeEventListener('mouseup', event);
 		};
-	}, [isDragging]);
+	}, [dragging]);
 
-	const createRefs = (e: HTMLDivElement) => {
-		if (e && !boxesRef.current.includes(e)) boxesRef.current.push(e);
+	useEffect(() => {
+		init(direction, childRef.current, dividerRef.current, initSizes);
+		generateLinks({
+			direction,
+			children: childRef.current,
+			dividers: dividerRef.current,
+		});
+	}, []);
+
+	const addRef = (
+		refs: typeof childRef | typeof dividerRef,
+		element: HTMLElement
+	) => {
+		if (element && !refs.current.includes(element)) {
+			refs.current.push(element);
+		}
 	};
 
 	return (
-		<div
-			ref={groupRef}
-			style={{
-				display: 'flex',
-				flexDirection: 'column',
-				top: 0,
-				bottom: 0,
-				position: 'fixed',
-			}}
-		>
-			{children.map((child, index) => {
-				return (
-					<div
-						ref={createRefs}
-						key={index}
-						style={{
-							height: `calc(${100 / children.length}%)`,
-						}}
-					>
-						<div
-							style={{ height: 20, backgroundColor: 'lightgray', fontSize: 12 }}
-							onMouseDown={(e) => {
-								if (index === 0) return;
-								return handleMouseDown(e, index);
-							}}
-						>
-							Divider: {index}
-						</div>
-						{child}
-					</div>
-				);
-			})}
+		<Provider scope={SCOPE}>
 			<div
+				// ref={groupRef}
+				className={classes.root}
 				style={{
-					position: 'fixed',
-					right: 0,
-					backgroundColor: 'gray',
-					fontSize: 10,
-					width: 300,
-					color: 'white',
+					flexDirection: direction === Direction.Column ? 'column' : 'row',
 				}}
 			>
-				<pre>
-					{JSON.stringify(
-						links.map(({ size, start, style }) => ({
-							size,
-							start,
-							style,
-						})),
-						null,
-						2
-					)}
-				</pre>{' '}
+				{children.map((child, index) => {
+					return (
+						<Fragment key={index}>
+							<Divider
+								setRef={(el: HTMLDivElement) => addRef(dividerRef, el)}
+								onMouseDown={(e: React.MouseEvent) => handleDividerMouseDown(e, index)}
+								drag={index > 0}
+								direction={direction}
+							>
+								{links[index]?._currentPercent}
+							</Divider>
+							<div
+								className={classes.wrapper}
+								ref={(el: HTMLDivElement) => addRef(childRef, el)}
+							>
+								{child}
+							</div>
+						</Fragment>
+					);
+				})}
 			</div>
-		</div>
+		</Provider>
 	);
 };
 
