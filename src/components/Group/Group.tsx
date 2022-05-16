@@ -7,10 +7,12 @@ import React, {
 	useCallback,
 	useEffect,
 	useRef,
+	useState,
 } from 'react';
 import Divider from '../Divider/Divider';
 
 import classes from './Group.module.css';
+import calculatePercent from './utils/calculatePercent.util';
 
 export enum Direction {
 	Column = 'COLUMN',
@@ -27,19 +29,13 @@ interface Props {
 }
 
 interface Link {
-	current: HTMLElement;
 	divider: HTMLElement;
-	fold: boolean;
 	index: number;
-	next: HTMLElement;
-	parent: HTMLElement;
-	prev: HTMLElement;
-	_currentPercent: number;
-	_dividerSize: number;
-	_end: number;
-	_prevPercent: number;
-	_pairSize: number;
-	_start: number;
+	dividerSize: number;
+	start: number;
+	size: number;
+	end: number;
+	ref: HTMLElement;
 }
 
 const MIN_SIZE = 10;
@@ -50,102 +46,74 @@ const getInnerSize = (direction: Direction, element: HTMLElement) => {
 		: element.clientWidth;
 };
 
-const draggingAtom = atom(false);
-const dividerIndexAtom = atom(-1);
 const linksAtom = atom<Link[]>([]);
 
 const generateLinksAtom = atom(null, (get, set, update: any) => {
-	console.log('generateLinksAtom');
-
 	const { direction, children, dividers } = update;
-	const parent = children[0].parentNode;
-
 	let array: Link[] = [];
 
 	children.forEach((child: HTMLElement, index: number) => {
-		const prev = children[index - 1];
 		const divider = dividers[index];
 		const current = children[index];
-		const next = children[index + 1];
+		const dividerBox = divider.getBoundingClientRect();
+		const currentBox = current.getBoundingClientRect();
 
 		const dividerSize =
-			direction === Direction.Column
-				? divider.getBoundingClientRect().height
-				: divider.getBoundingClientRect().width;
+			direction === Direction.Column ? dividerBox.height : dividerBox.width;
 
 		const end =
+			direction === Direction.Column ? currentBox.bottom : currentBox.right;
+
+		const newSize =
 			direction === Direction.Column
-				? current.getBoundingClientRect().bottom
-				: current.getBoundingClientRect().right;
-
-		const start =
-			direction === Direction.Column && prev
-				? prev?.getBoundingClientRect().top
-				: prev?.getBoundingClientRect().left;
-
-		const size =
-			direction === Direction.Column && prev
-				? prev?.getBoundingClientRect().height +
-				  divider.getBoundingClientRect().height +
-				  current.getBoundingClientRect().height
-				: prev?.getBoundingClientRect().width +
-				  divider.getBoundingClientRect().width +
-				  current.getBoundingClientRect().width;
+				? dividerBox.height + currentBox.height
+				: dividerBox.width + currentBox.width;
 
 		array.push({
-			current,
-			divider,
-			fold: false,
+			ref: current,
 			index: index,
-			next,
-			parent,
-			prev,
-			_currentPercent: 100 / children.length,
-			_dividerSize: dividerSize,
-			_end: end,
-			_prevPercent: prev ? 100 / children.length : undefined,
-			_pairSize: prev ? size : undefined,
-			_start: start,
+			divider,
+			dividerSize,
+			size: newSize,
+			start: direction === Direction.Column ? currentBox.top : currentBox.left,
+			end,
 		} as Link);
 	});
 	set(linksAtom, array);
 });
 
 const calculateSizesAtom = atom(null, (get, set, update: any) => {
-	console.log('calculateSizesAtom');
-
 	const { direction, index } = update;
 	const links = get(linksAtom);
-	const link = links[index];
-	const parentSize = getInnerSize(direction, link.parent);
-	const dividerHeight = link.divider.clientHeight;
-
-	let prevPercent;
-	let currentPercent;
+	const currentLink = links[index];
+	const prevLink = links[index - 1];
 
 	if (direction === Direction.Column) {
-		console.log('calculateSizes');
+		const b1 = prevLink.ref.getBoundingClientRect();
+		prevLink.start = b1.top;
+		prevLink.size = b1.height;
+		prevLink.end = b1.bottom;
 
-		const prevHeight = link.prev?.getBoundingClientRect().height || 0;
-		const prevTop = link.prev?.getBoundingClientRect().top || 0;
-		prevPercent = ((prevHeight + dividerHeight) / parentSize) * 100;
-		link._prevPercent = prevPercent;
-
-		const current = link.current.getBoundingClientRect();
-		currentPercent = ((current.height + dividerHeight) / parentSize) * 100;
-		link._currentPercent = currentPercent;
-
-		link._start = prevTop;
-		link._end = current.bottom;
-		link._pairSize = prevHeight + dividerHeight * 2 + current.height;
+		const b2 = currentLink.ref.getBoundingClientRect();
+		currentLink.start = b2.top;
+		currentLink.size = b2.height;
+		currentLink.end = b2.bottom;
 
 		// Calculate rest size for last box
 	} else {
+		// NEW
+		const b1 = prevLink.ref.getBoundingClientRect();
+		prevLink.start = b1.left;
+		prevLink.size = b1.width;
+		prevLink.end = b1.right;
+
+		const b2 = currentLink.ref.getBoundingClientRect();
+		currentLink.start = b2.left;
+		currentLink.size = b2.width;
+		currentLink.end = b2.right;
 	}
 
-	links[index] = link;
-
-	console.log('fff', links[index]);
+	links[index] = currentLink;
 
 	set(linksAtom, links);
 });
@@ -159,8 +127,8 @@ const Group: FC<Props> = ({
 	scope: SCOPE,
 }) => {
 	const links = useAtomValue(linksAtom, SCOPE);
-	const [dragging, setDragging] = useAtom(draggingAtom, SCOPE);
-	const [dividerIndex, setDividerIndex] = useAtom(dividerIndexAtom, SCOPE);
+	const [dragging, setDragging] = useState(false);
+	const [dividerIndex, setDividerIndex] = useState(-1);
 
 	const [, generateLinks] = useAtom(generateLinksAtom, SCOPE);
 	const [, calculateSizes] = useAtom(calculateSizesAtom, SCOPE);
@@ -168,8 +136,6 @@ const Group: FC<Props> = ({
 	const groupRef = useRef<any>();
 	const childRef = useRef<HTMLElement[]>([]);
 	const dividerRef = useRef<HTMLElement[]>([]);
-
-	console.log('links', links);
 
 	const init = useCallback(
 		(
@@ -223,40 +189,6 @@ const Group: FC<Props> = ({
 		setDragging(false);
 	}, [setDragging]);
 
-	const drag = useCallback(
-		(e: React.MouseEvent, direction: Direction, dividerIndex: number) => {
-			const link = links[dividerIndex];
-			const prevLink = links[dividerIndex - 1];
-			if (link.fold || prevLink.fold) return;
-
-			const isColumn = direction === Direction.Column;
-
-			const percent = link._prevPercent + link._currentPercent;
-			const dividerSize = link._dividerSize;
-			let offset = (isColumn ? e.clientY : e.clientX) - link._start;
-
-			// MIN SIZES
-			if (offset < dividerSize + MIN_SIZE) {
-				offset = dividerSize + MIN_SIZE;
-			}
-			if (offset >= link._pairSize - (dividerSize + MIN_SIZE)) {
-				offset = link._pairSize - (dividerSize + MIN_SIZE);
-			}
-
-			const prevPercent = (offset / link._pairSize) * percent;
-			const currentPercent = percent - prevPercent;
-
-			if (direction === Direction.Column) {
-				link.prev.style.height = `calc(${prevPercent}% - ${dividerSize}px)`;
-				link.current.style.height = `calc(${currentPercent}% - ${dividerSize}px)`;
-			} else {
-				link.prev.style.width = `calc(${prevPercent}% - ${dividerSize}px)`;
-				link.current.style.width = `calc(${currentPercent}% - ${dividerSize}px)`;
-			}
-		},
-		[links]
-	);
-
 	const handleDividerMouseDown = (e: React.MouseEvent, index: number) => {
 		e.preventDefault();
 		if (index === 0) return;
@@ -266,39 +198,39 @@ const Group: FC<Props> = ({
 
 	// MOUSE MOVE
 	useEffect(() => {
-		const groupHeight = groupRef.current?.clientHeight;
-		const event = (e) => {
+		const isColumn = direction === Direction.Column;
+		const groupSize = isColumn
+			? groupRef.current?.clientHeight
+			: groupRef.current?.clientWidth;
+		const event = (e: MouseEvent) => {
 			if (!dragging) return;
 
 			requestAnimationFrame(() => {
 				const link = links[dividerIndex];
 				const prevLink = links[dividerIndex - 1];
-				const isColumn = direction === Direction.Column;
-				const percent = link._prevPercent + link._currentPercent;
-				const dividerSize = link._dividerSize;
-				let offset = (isColumn ? e.clientY : e.clientX) - link._start;
+				const dividerSize = 0;
+				const offset = (isColumn ? e.clientY : e.clientX) - link.start;
 
-				// MIN SIZES
-				if (offset < dividerSize + MIN_SIZE) {
-					offset = dividerSize + MIN_SIZE;
+				if (prevLink.size + offset < dividerSize) {
+					return;
 				}
-				if (offset >= link._pairSize - (dividerSize + MIN_SIZE)) {
-					offset = link._pairSize - (dividerSize + MIN_SIZE);
+				if (link.size - offset < dividerSize) {
+					return;
 				}
 
-				const prevPercent = (offset / link._pairSize) * percent;
-				const currentPercent = percent - prevPercent;
+				const prevPercent = calculatePercent(prevLink.size, -offset, groupSize);
+				const percent = calculatePercent(link.size, offset, groupSize);
+
 				requestAnimationFrame(() => {
 					if (direction === Direction.Column) {
-						link.prev.style.height = `calc(${prevPercent}% - ${dividerSize}px)`;
-						link.current.style.height = `calc(${currentPercent}% - ${dividerSize}px)`;
+						prevLink.ref.style.height = `calc(${prevPercent}% - ${dividerSize}px)`;
+						link.ref.style.height = `calc(${percent}% - ${dividerSize}px)`;
 					} else {
-						link.prev.style.width = `calc(${prevPercent}% - ${dividerSize}px)`;
-						link.current.style.width = `calc(${currentPercent}% - ${dividerSize}px)`;
+						prevLink.ref.style.width = `calc(${prevPercent}% - ${dividerSize}px)`;
+						link.ref.style.width = `calc(${percent}% - ${dividerSize}px)`;
 					}
 				});
 			});
-			//drag(e, direction, dividerIndex);
 		};
 
 		window.addEventListener('mousemove', event);
@@ -306,7 +238,7 @@ const Group: FC<Props> = ({
 		return () => {
 			window.removeEventListener('mousemove', event);
 		};
-	}, [dragging, drag]);
+	}, [dragging]);
 
 	// MOUSE UP
 	useEffect(() => {
@@ -314,6 +246,7 @@ const Group: FC<Props> = ({
 			if (!dragging) return;
 			stopDrag();
 			calculateSizes({ direction, index: dividerIndex });
+			console.log('Log: [links]', links);
 		};
 
 		window.addEventListener('mouseup', event);
@@ -344,7 +277,7 @@ const Group: FC<Props> = ({
 	return (
 		<Provider scope={SCOPE}>
 			<div
-				// ref={groupRef}
+				ref={groupRef}
 				className={classes.root}
 				style={{
 					flexDirection: direction === Direction.Column ? 'column' : 'row',
@@ -359,7 +292,7 @@ const Group: FC<Props> = ({
 								drag={index > 0}
 								direction={direction}
 							>
-								{links[index]?._currentPercent}
+								{links[index]?.size}
 							</Divider>
 							<div
 								className={classes.wrapper}

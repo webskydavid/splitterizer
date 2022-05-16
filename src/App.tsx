@@ -29,11 +29,11 @@ function App() {
 				</Box>
 				<Box>
 					<Group direction={Direction.Column} scope="3">
-						<Box>{list(ITMES)}</Box>
+						<Box></Box>
 						<Box>
 							<Group direction={Direction.Row} scope="4">
-								<Box>{list(ITMES)}</Box>
-								<Box>{list(ITMES)}</Box>
+								<Box></Box>
+								<Box></Box>
 							</Group>
 						</Box>
 					</Group>
