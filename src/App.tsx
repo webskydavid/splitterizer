@@ -2,9 +2,9 @@ import { atom, useAtom, useAtomValue } from 'jotai';
 import { FC, ReactElement, useEffect, useRef, useState } from 'react';
 import Box from './components/Box/Box';
 import classes from './App.module.css';
-import Group, { Direction } from './components/Group/Group';
+import Group, { DIRECTION } from './components/Group/Group';
 
-const ITMES = 300;
+const ITMES = 1500;
 
 function App() {
 	const list = (length: number) => {
@@ -18,26 +18,26 @@ function App() {
 	};
 	return (
 		<div className={classes.root}>
-			<Group direction={Direction.Row} scope="1">
+			<Group direction={DIRECTION.Row} scope="1">
 				<Box>
-					<Group direction={Direction.Column} scope="2">
-						<Box>{list(ITMES)}</Box>
-						<Box>{list(ITMES)}</Box>
-						<Box>{list(ITMES)}</Box>
-						<Box>{list(ITMES)}</Box>
+					<Group direction={DIRECTION.Column} scope="2">
+						<Box>{list(300)}</Box>
+						<Box>{list(100)}</Box>
+						<Box>{list(50)}</Box>
+						<Box>{list(30)}</Box>
 					</Group>
 				</Box>
 				<Box>
-					<Group direction={Direction.Column} scope="3">
+					<Group direction={DIRECTION.Column} scope="3">
 						<Box></Box>
 						<Box>
-							<Group direction={Direction.Row} scope="4">
-								<Box></Box>
+							<Group direction={DIRECTION.Row} scope="4">
 								<Box></Box>
 							</Group>
 						</Box>
 					</Group>
 				</Box>
+				<Box>fewf</Box>
 			</Group>
 		</div>
 	);

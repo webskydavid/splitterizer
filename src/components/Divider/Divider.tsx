@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Direction } from '../Group/Group';
+import { DIRECTION } from '../Group/Group';
 
 import classes from './Divider.module.css';
 
@@ -13,7 +13,7 @@ const Divider: FC<any> = ({
 }) => {
 	return (
 		<>
-			{direction === Direction.Column ? (
+			{direction === DIRECTION.Column ? (
 				<div ref={setRef} className={classes.root}>
 					<div className={classes.fold} onClick={onFold}>
 						Fold

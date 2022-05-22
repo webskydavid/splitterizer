@@ -1,11 +1,16 @@
 import { atom, Provider, useAtom } from 'jotai';
 import { useAtomValue } from 'jotai/utils';
+import throt from 'lodash.throttle';
 import React, {
 	FC,
 	Fragment,
+	ReactChildren,
+	ReactElement,
 	ReactNode,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from 'react';
@@ -13,14 +18,17 @@ import Divider from '../Divider/Divider';
 
 import classes from './Group.module.css';
 import calculatePercent from './utils/calculatePercent.util';
+import throttle from './utils/throttle.util';
 
-export enum Direction {
-	Column = 'COLUMN',
-	Row = 'ROW',
-}
+type Direction = 'COLUMN' | 'ROW';
+
+export const DIRECTION: Record<string, Direction> = {
+	Column: 'COLUMN',
+	Row: 'ROW',
+};
 
 interface Props {
-	children: ReactNode[];
+	children: ReactNode | ReactNode[];
 	direction?: Direction;
 	initSizes?: number[];
 	minBoxHeights?: number[];
@@ -41,7 +49,7 @@ interface Link {
 const MIN_SIZE = 10;
 
 const getInnerSize = (direction: Direction, element: HTMLElement) => {
-	return direction === Direction.Column
+	return direction === DIRECTION.Column
 		? element.clientHeight
 		: element.clientWidth;
 };
@@ -59,13 +67,13 @@ const generateLinksAtom = atom(null, (get, set, update: any) => {
 		const currentBox = current.getBoundingClientRect();
 
 		const dividerSize =
-			direction === Direction.Column ? dividerBox.height : dividerBox.width;
+			direction === DIRECTION.Column ? dividerBox.height : dividerBox.width;
 
 		const end =
-			direction === Direction.Column ? currentBox.bottom : currentBox.right;
+			direction === DIRECTION.Column ? currentBox.bottom : currentBox.right;
 
 		const newSize =
-			direction === Direction.Column
+			direction === DIRECTION.Column
 				? dividerBox.height + currentBox.height
 				: dividerBox.width + currentBox.width;
 
@@ -75,7 +83,7 @@ const generateLinksAtom = atom(null, (get, set, update: any) => {
 			divider,
 			dividerSize,
 			size: newSize,
-			start: direction === Direction.Column ? currentBox.top : currentBox.left,
+			start: direction === DIRECTION.Column ? currentBox.top : currentBox.left,
 			end,
 		} as Link);
 	});
@@ -88,7 +96,7 @@ const calculateSizesAtom = atom(null, (get, set, update: any) => {
 	const currentLink = links[index];
 	const prevLink = links[index - 1];
 
-	if (direction === Direction.Column) {
+	if (direction === DIRECTION.Column) {
 		const b1 = prevLink.ref.getBoundingClientRect();
 		prevLink.start = b1.top;
 		prevLink.size = b1.height;
@@ -120,12 +128,13 @@ const calculateSizesAtom = atom(null, (get, set, update: any) => {
 
 const Group: FC<Props> = ({
 	children,
-	direction = Direction.Column,
+	direction = DIRECTION.Column,
 	minBoxHeights = [],
 	minBoxWidths = [],
 	initSizes = [],
 	scope: SCOPE,
 }) => {
+	const childrenArray = React.Children.toArray(children);
 	const links = useAtomValue(linksAtom, SCOPE);
 	const [dragging, setDragging] = useState(false);
 	const [dividerIndex, setDividerIndex] = useState(-1);
@@ -140,32 +149,26 @@ const Group: FC<Props> = ({
 	const init = useCallback(
 		(
 			direction: Direction,
-			children: HTMLElement[],
+			elements: HTMLElement[],
 			dividers: HTMLElement[],
 			initSizes: number[]
 		) => {
-			const sizes = direction === Direction.Column ? 'height' : 'width';
-			const parent = children[0].parentNode;
-			const parentSize = getInnerSize(direction, parent as HTMLElement);
-
-			if (!parentSize) {
-				throw new Error('Parent size undefined');
-			}
+			const sizes = direction === DIRECTION.Column ? 'height' : 'width';
 
 			if (initSizes.length && initSizes.reduce((p, c) => p + c, 0) < 100) {
 				throw new Error('Sum of initial sizes is less then 100');
 			}
 
-			children.forEach((child, index) => {
+			elements.forEach((child, index) => {
 				const divider = dividers[index];
 				const dividerSize = divider.getBoundingClientRect()[sizes];
-				let calc = `calc(${100 / children.length}% - ${dividerSize}px)`;
+				let calc = `calc(${100 / elements.length}% - ${dividerSize}px)`;
 
 				if (initSizes.length) {
 					calc = `calc(${initSizes[index]}% - ${dividerSize}px)`;
 				}
 
-				if (direction === Direction.Column) {
+				if (direction === DIRECTION.Column) {
 					child.style.height = calc;
 					child.style.width = '100%';
 				} else {
@@ -197,17 +200,18 @@ const Group: FC<Props> = ({
 	};
 
 	// MOUSE MOVE
-	useEffect(() => {
-		const isColumn = direction === Direction.Column;
+	useLayoutEffect(() => {
+		const isColumn = direction === DIRECTION.Column;
 		const groupSize = isColumn
 			? groupRef.current?.clientHeight
 			: groupRef.current?.clientWidth;
+		const link = links[dividerIndex];
+		const prevLink = links[dividerIndex - 1];
+
 		const event = (e: MouseEvent) => {
 			if (!dragging) return;
 
 			requestAnimationFrame(() => {
-				const link = links[dividerIndex];
-				const prevLink = links[dividerIndex - 1];
 				const dividerSize = 0;
 				const offset = (isColumn ? e.clientY : e.clientX) - link.start;
 
@@ -222,7 +226,7 @@ const Group: FC<Props> = ({
 				const percent = calculatePercent(link.size, offset, groupSize);
 
 				requestAnimationFrame(() => {
-					if (direction === Direction.Column) {
+					if (direction === DIRECTION.Column) {
 						prevLink.ref.style.height = `calc(${prevPercent}% - ${dividerSize}px)`;
 						link.ref.style.height = `calc(${percent}% - ${dividerSize}px)`;
 					} else {
@@ -246,7 +250,6 @@ const Group: FC<Props> = ({
 			if (!dragging) return;
 			stopDrag();
 			calculateSizes({ direction, index: dividerIndex });
-			console.log('Log: [links]', links);
 		};
 
 		window.addEventListener('mouseup', event);
@@ -280,10 +283,10 @@ const Group: FC<Props> = ({
 				ref={groupRef}
 				className={classes.root}
 				style={{
-					flexDirection: direction === Direction.Column ? 'column' : 'row',
+					flexDirection: direction === DIRECTION.Column ? 'column' : 'row',
 				}}
 			>
-				{children.map((child, index) => {
+				{React.Children.map(childrenArray, (child, index) => {
 					return (
 						<Fragment key={index}>
 							<Divider
