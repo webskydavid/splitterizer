@@ -2,7 +2,6 @@
 	width: 100%;
 
 	display: grid;
-	background-color: rgb(142 184 127);
 }
 
 .vDrag {
@@ -29,14 +28,9 @@
 	background-color: rgb(80, 122, 164);
 }
 
-.rootDragging {
-	composes: root;
-	background-color: rgb(31, 46, 22);
-}
-
 .drag {
-	height: 18px;
-	width: 18px;
+	height: 4px;
+	width: 4px;
 
 	pointer-events: all;
 	cursor: pointer;

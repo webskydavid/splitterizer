@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { DIRECTION } from '../Group/Group';
+import { DIRECTION } from '../Group/constants/direction';
 
 import classes from './Divider.module.css';
 
@@ -7,7 +7,6 @@ const Divider: FC<any> = ({
 	children,
 	setRef,
 	onMouseDown,
-	onFold,
 	drag,
 	direction,
 }) => {
@@ -21,12 +20,6 @@ const Divider: FC<any> = ({
 						<div></div>
 					)}
 					{children}
-					{/* <div className={classes.title}>{children}</div>
-					{drag ? (
-						<div className={classes.drag} onMouseDown={onMouseDown}></div>
-					) : (
-						<div className={classes.emptyDrag}></div>
-					)} */}
 				</div>
 			) : drag ? (
 				<div ref={setRef} onMouseDown={onMouseDown} className={classes.vDrag}></div>
