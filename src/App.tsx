@@ -5,6 +5,16 @@ import classes from './App.module.css';
 import Group, { DIRECTION } from './components/Group/Group';
 
 const ITMES = 1500;
+const Divider = ({ title }: { title: string }) => {
+	return <div style={{ height: 40 }}>{title}</div>;
+};
+
+const COMPONENTS = [
+	null,
+	<Divider title="Test 1" />,
+	<Divider title="Test 1" />,
+	<Divider title="Test 1" />,
+];
 
 function App() {
 	const list = (length: number) => {
@@ -18,9 +28,23 @@ function App() {
 	};
 	return (
 		<div className={classes.root}>
-			<Group direction={DIRECTION.Row} scope="1">
+			<div
+				onMouseEnter={(e) => {
+					console.log('Log: [e]', e);
+				}}
+				style={{
+					zIndex: 4000,
+					top: 30,
+					left: 100,
+					width: 50,
+					height: 50,
+					position: 'fixed',
+					backgroundColor: 'red',
+				}}
+			></div>
+			<Group direction={DIRECTION.Row} scope="1" initSizes={[20, 60, 20]}>
 				<Box>
-					<Group direction={DIRECTION.Column} scope="2">
+					<Group direction={DIRECTION.Column} scope="2" components={COMPONENTS}>
 						<Box>{list(300)}</Box>
 						<Box>{list(100)}</Box>
 						<Box>{list(50)}</Box>
@@ -28,13 +52,10 @@ function App() {
 					</Group>
 				</Box>
 				<Box>
-					<Group direction={DIRECTION.Column} scope="3">
-						<Box></Box>
-						<Box>
-							<Group direction={DIRECTION.Row} scope="4">
-								<Box></Box>
-							</Group>
-						</Box>
+					<Group direction={DIRECTION.Column} initSizes={[70, 10, 20]} scope="3">
+						<Box>fefe</Box>
+						<Box>dfe</Box>
+						<div>jfoewjfoe</div>
 					</Group>
 				</Box>
 				<Box>fewf</Box>

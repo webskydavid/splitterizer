@@ -33,6 +33,7 @@ interface Props {
 	initSizes?: number[];
 	minBoxHeights?: number[];
 	minBoxWidths?: number[];
+	components?: ReactNode[];
 	scope: any;
 }
 
@@ -131,7 +132,8 @@ const Group: FC<Props> = ({
 	direction = DIRECTION.Column,
 	minBoxHeights = [],
 	minBoxWidths = [],
-	initSizes = [],
+	initSizes,
+	components = [],
 	scope: SCOPE,
 }) => {
 	const childrenArray = React.Children.toArray(children);
@@ -151,24 +153,24 @@ const Group: FC<Props> = ({
 			direction: Direction,
 			elements: HTMLElement[],
 			dividers: HTMLElement[],
-			initSizes: number[]
+			sectionSizes: number[] | undefined
 		) => {
+			const isColumn = direction === DIRECTION.Column;
 			const sizes = direction === DIRECTION.Column ? 'height' : 'width';
-
-			if (initSizes.length && initSizes.reduce((p, c) => p + c, 0) < 100) {
-				throw new Error('Sum of initial sizes is less then 100');
-			}
 
 			elements.forEach((child, index) => {
 				const divider = dividers[index];
 				const dividerSize = divider.getBoundingClientRect()[sizes];
 				let calc = `calc(${100 / elements.length}% - ${dividerSize}px)`;
 
-				if (initSizes.length) {
-					calc = `calc(${initSizes[index]}% - ${dividerSize}px)`;
+				if (sectionSizes && sectionSizes.length) {
+					const size = sectionSizes[index];
+					if (size !== null) {
+						calc = `calc(${+size}% - ${dividerSize}px)`;
+					}
 				}
 
-				if (direction === DIRECTION.Column) {
+				if (isColumn) {
 					child.style.height = calc;
 					child.style.width = '100%';
 				} else {
@@ -197,6 +199,8 @@ const Group: FC<Props> = ({
 		if (index === 0) return;
 		calculateSizes({ direction, index });
 		startDrag(index);
+		document.getElementsByTagName('body')[0].style.cursor = 'row-resize';
+		console.log('Log: [divider]', dividerRef.current[dividerIndex], e.clientY);
 	};
 
 	// MOUSE MOVE
@@ -212,26 +216,34 @@ const Group: FC<Props> = ({
 			if (!dragging) return;
 
 			requestAnimationFrame(() => {
-				const dividerSize = 0;
+				const currentdividerSize = link.dividerSize;
 				const offset = (isColumn ? e.clientY : e.clientX) - link.start;
 
-				if (prevLink.size + offset < dividerSize) {
+				if (prevLink.size + offset + currentdividerSize <= -1) {
 					return;
 				}
-				if (link.size - offset < dividerSize) {
+				if (link.size - offset - currentdividerSize <= 0) {
 					return;
 				}
 
-				const prevPercent = calculatePercent(prevLink.size, -offset, groupSize);
-				const percent = calculatePercent(link.size, offset, groupSize);
+				const prevPercent = calculatePercent(
+					prevLink.size + currentdividerSize,
+					-offset,
+					groupSize
+				);
+				const percent = calculatePercent(
+					link.size - currentdividerSize,
+					offset,
+					groupSize
+				);
 
 				requestAnimationFrame(() => {
 					if (direction === DIRECTION.Column) {
-						prevLink.ref.style.height = `calc(${prevPercent}% - ${dividerSize}px)`;
-						link.ref.style.height = `calc(${percent}% - ${dividerSize}px)`;
+						prevLink.ref.style.height = `calc(${prevPercent}%)`;
+						link.ref.style.height = `calc(${percent}%)`;
 					} else {
-						prevLink.ref.style.width = `calc(${prevPercent}% - ${dividerSize}px)`;
-						link.ref.style.width = `calc(${percent}% - ${dividerSize}px)`;
+						prevLink.ref.style.width = `calc(${prevPercent}% - 4px)`;
+						link.ref.style.width = `calc(${percent}% - 4px)`;
 					}
 				});
 			});
@@ -250,6 +262,8 @@ const Group: FC<Props> = ({
 			if (!dragging) return;
 			stopDrag();
 			calculateSizes({ direction, index: dividerIndex });
+			document.body.style.cursor = 'row-resize';
+			console.log(links);
 		};
 
 		window.addEventListener('mouseup', event);
@@ -295,7 +309,7 @@ const Group: FC<Props> = ({
 								drag={index > 0}
 								direction={direction}
 							>
-								{links[index]?.size}
+								{components[index]}
 							</Divider>
 							<div
 								className={classes.wrapper}

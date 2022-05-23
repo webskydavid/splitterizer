@@ -1,20 +1,32 @@
 .root {
 	width: 100%;
-	padding-inline: 6px;
 
 	display: grid;
-	grid-template-columns: 0.3fr 1fr 0.3fr;
-
-	background: rgb(179, 116, 45);
+	background-color: rgb(142 184 127);
 }
 
-.rootVertical {
-	width: 18px;
+.vDrag {
+	width: 4px;
 	padding: 0;
 
 	display: flex;
 
-	background: rgb(158, 131, 49);
+	background: rgb(34, 38, 42);
+	cursor: col-resize;
+}
+
+.hDrag {
+	height: 4px;
+	padding: 0;
+
+	display: flex;
+
+	background: rgb(34, 38, 42);
+	cursor: row-resize;
+}
+
+.hDrag:hover {
+	background-color: rgb(80, 122, 164);
 }
 
 .rootDragging {
@@ -22,13 +34,10 @@
 	background-color: rgb(31, 46, 22);
 }
 
-.fold {
-	background-color: rgb(145, 145, 145);
-}
-
-.title {
-}
-
 .drag {
-	background-color: rgb(145, 145, 145);
+	height: 18px;
+	width: 18px;
+
+	pointer-events: all;
+	cursor: pointer;
 }

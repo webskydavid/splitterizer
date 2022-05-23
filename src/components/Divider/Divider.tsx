@@ -15,24 +15,23 @@ const Divider: FC<any> = ({
 		<>
 			{direction === DIRECTION.Column ? (
 				<div ref={setRef} className={classes.root}>
-					<div className={classes.fold} onClick={onFold}>
-						Fold
-					</div>
-					<div className={classes.title}>{children}</div>
 					{drag ? (
-						<div className={classes.drag} onMouseDown={onMouseDown}>
-							Drag
-						</div>
+						<div className={classes.hDrag} onMouseDown={onMouseDown}></div>
+					) : (
+						<div></div>
+					)}
+					{children}
+					{/* <div className={classes.title}>{children}</div>
+					{drag ? (
+						<div className={classes.drag} onMouseDown={onMouseDown}></div>
 					) : (
 						<div className={classes.emptyDrag}></div>
-					)}
+					)} */}
 				</div>
+			) : drag ? (
+				<div ref={setRef} onMouseDown={onMouseDown} className={classes.vDrag}></div>
 			) : (
-				<div
-					ref={setRef}
-					onMouseDown={onMouseDown}
-					className={classes.rootVertical}
-				></div>
+				<div ref={setRef}></div>
 			)}
 		</>
 	);
