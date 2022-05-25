@@ -105,6 +105,7 @@ const Group: FC<Props> = ({
 		}
 	};
 
+	// MOUSE DOWN ON DIVIDER
 	const handleDividerMouseDown = (e: React.MouseEvent, index: number) => {
 		e.preventDefault();
 		if (index === 0) return;
@@ -152,8 +153,8 @@ const Group: FC<Props> = ({
 						prevLink.ref.style.height = `calc(${prevPercent}%)`;
 						link.ref.style.height = `calc(${percent}%)`;
 					} else {
-						prevLink.ref.style.width = `calc(${prevPercent}% - 4px)`;
-						link.ref.style.width = `calc(${percent}% - 4px)`;
+						prevLink.ref.style.width = `calc(${prevPercent}%)`;
+						link.ref.style.width = `calc(${percent}%)`;
 					}
 				});
 			});
@@ -168,7 +169,7 @@ const Group: FC<Props> = ({
 
 	// MOUSE UP
 	useEffect(() => {
-		const event = (e) => {
+		const event = (e: MouseEvent) => {
 			if (!dragging) return;
 			stopDrag();
 			calculateSizes({ direction, index: dividerIndex });
@@ -182,6 +183,7 @@ const Group: FC<Props> = ({
 		};
 	}, [dragging]);
 
+	// INITIAL RUN
 	useEffect(() => {
 		init(direction, childRef.current, dividerRef.current, initSizes);
 		generateLinks({

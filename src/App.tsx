@@ -29,20 +29,6 @@ function App() {
 	};
 	return (
 		<div className={classes.root}>
-			<div
-				onMouseEnter={(e) => {
-					console.log('Log: [e]', e);
-				}}
-				style={{
-					zIndex: 4000,
-					top: 30,
-					left: 100,
-					width: 50,
-					height: 50,
-					position: 'fixed',
-					backgroundColor: 'red',
-				}}
-			></div>
 			<Group direction={DIRECTION.Row} scope="1" initSizes={[20, 60, 20]}>
 				<Box>
 					<Group direction={DIRECTION.Column} scope="2" components={COMPONENTS1}>
