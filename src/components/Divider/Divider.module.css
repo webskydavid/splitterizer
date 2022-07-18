@@ -2,6 +2,8 @@
 	width: 100%;
 
 	display: grid;
+
+	background-color: rgb(34, 38, 42);
 }
 
 .vDrag {
@@ -22,6 +24,10 @@
 
 	background: rgb(34, 38, 42);
 	cursor: row-resize;
+}
+
+.vDrag:hover {
+	background-color: rgb(80, 122, 164);
 }
 
 .hDrag:hover {
